@@ -9,6 +9,7 @@ import (
 	"log"
 	"net"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -37,6 +38,10 @@ type User struct {
 	Addr           string
 	EnterAt        time.Time
 	MessageChannel chan string
+}
+
+var mockUserName = []string{
+	"boka",
 }
 
 func (u *User) String() string {
@@ -86,6 +91,15 @@ func broadcaster() {
 	}
 }
 
+func checkLogin(userNames []string, userName string) bool {
+	for _, a := range userNames {
+		if a == userName {
+			return true
+		}
+	}
+	return false
+}
+
 func handleConn(conn net.Conn) {
 	defer conn.Close()
 
@@ -97,9 +111,16 @@ func handleConn(conn net.Conn) {
 		MessageChannel: make(chan string, 8),
 	}
 
-	// 2. 当前在一个新的 goroutine 中，用来进行读操作，因此需要开一个 goroutine 用于写操作
-	// 读写 goroutine 之间可以通过 channel 进行通信
-	go sendMessage(conn, user.MessageChannel)
+	go func() {
+		msg := <-messageChannel
+		splitMsg := strings.Split(msg.Content, ":")
+		userName := splitMsg[1]
+		if checkLogin(mockUserName, userName) {
+			// 2. 当前在一个新的 goroutine 中，用来进行读操作，因此需要开一个 goroutine 用于写操作
+			// 读写 goroutine 之间可以通过 channel 进行通信
+			go sendMessage(conn, user.MessageChannel)
+		}
+	}()
 
 	// 3. 给当前用户发送欢迎信息；给所有用户告知新用户到来
 	user.MessageChannel <- "Welcome, " + user.String()
